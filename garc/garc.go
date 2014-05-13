@@ -23,7 +23,8 @@ type FATO struct {
 	Size uint32
 	RecordCount uint16
 	_ uint16 // always 0xFFFF
-	// Each record is 4 bytes and gives an offset into the FATB
+	// Followed by RecordCount words, each an offset into the FATB data.
+	// The first word is a bit vector. For each set bit, a Record follows.
 }
 
 // File allocation table
@@ -34,7 +35,6 @@ type FATB struct {
 }
 
 type Record struct {
-	_ uint32 // always 1
 	Start uint32
 	End uint32
 	Size uint32
@@ -74,26 +74,37 @@ func Files(r Reader) ([]*File, error) {
 		return nil, err
 	}
 
-	// Skip FATO
-	r.Seek(int64(fato.Size) - 12, 1)
+	osets := make([]uint32, fato.RecordCount)
+	err = binary.Read(r, binary.LittleEndian, &osets)
+	if err != nil {
+		return nil, err
+	}
 
 	err = binary.Read(r, binary.LittleEndian, &fatb)
 	if err != nil {
 		return nil, err
 	}
 
-	rec := make([]Record, fatb.RecordCount)
-	err = binary.Read(r, binary.LittleEndian, rec)
-	if err != nil {
-		return nil, err
-	}
-
-	files := make([]*File, len(rec))
-	for i, rec := range rec {
-		off := int64(head.DataOffset) + int64(rec.Start)
-		size := int64(rec.Size)
-		files[i] = &File{*io.NewSectionReader(r, off, size), off}
+	files := make([]*File, 0, fatb.RecordCount)
+	for _ = range osets {
+		var vec uint32
+		err := binary.Read(r, binary.LittleEndian, &vec)
+		if err != nil {
+			return nil, err
+		}
+		var rec Record
+		for ; vec != 0; vec>>=1 {
+			if vec&1 == 0 {
+				continue
+			}
+			err = binary.Read(r, binary.LittleEndian, &rec)
+			if err != nil {
+				return nil, err
+			}
+			off := int64(head.DataOffset) + int64(rec.Start)
+			size := int64(rec.Size)
+			files = append(files, &File{*io.NewSectionReader(r, off, size), off})
+		}
 	}
 	return files, nil
-
 }
