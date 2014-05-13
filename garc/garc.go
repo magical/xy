@@ -48,6 +48,11 @@ type Reader interface {
 
 type File struct {
 	io.SectionReader
+	off int64
+}
+
+func (f *File) Offset() int64 {
+	return f.off
 }
 
 func Files(r Reader) ([]*File, error) {
@@ -87,7 +92,7 @@ func Files(r Reader) ([]*File, error) {
 	for i, rec := range rec {
 		off := int64(head.DataOffset) + int64(rec.Start)
 		size := int64(rec.Size)
-		files[i] = &File{*io.NewSectionReader(r, off, size)}
+		files[i] = &File{*io.NewSectionReader(r, off, size), off}
 	}
 	return files, nil
 
