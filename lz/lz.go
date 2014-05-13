@@ -2,6 +2,7 @@ package lz
 
 import (
 	"bufio"
+	//"fmt"
 	"errors"
 	"io"
 )
@@ -72,13 +73,14 @@ func decode11(r io.ByteReader, size int) ([]byte, error) {
 				count = 0x111
 			}
 			count += n >> 12
-			disp := n & 0xFFF
+			disp := n&0xFFF + 1
 			if disp > len(data) {
 				return nil, errMalformed
 			}
 			if len(data)+count > size {
 				count = size - len(data)
 			}
+			//fmt.Println(len(data), disp, len(data)-disp)
 			for j := 0; j < count; j++ {
 				data = append(data, data[len(data)-disp])
 			}
@@ -110,13 +112,19 @@ func Decode(r io.Reader) ([]byte, error) {
 	}
 	magic := b[0]
 	size := int(b[1]) + int(b[2])<<8 + int(b[3])<<16
+	var data []byte
 	switch magic {
 	case 0x10:
-		return decode10(byteReader(r), size)
+		data, err = decode10(byteReader(r), size)
 	case 0x11:
-		return decode11(byteReader(r), size)
+		data, err = decode11(byteReader(r), size)
+	default:
+		err = errors.New("lz.Decode: not compressed")
 	}
-	return nil, errors.New("not compressed")
+	if err == nil && len(data) != size {
+		err = errors.New("lz.Decode: size mismatch")
+	}
+	return data, err
 }
 
 // IsCompressed reports whether a reader is likely LZ-compressed. If the reader implements the Size method, it will be used to check the decompressed size against the compressed size.

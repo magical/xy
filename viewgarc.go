@@ -8,6 +8,7 @@ import (
 	"flag"
 
 	"xy/garc"
+	"xy/lz"
 )
 
 var length int
@@ -39,13 +40,35 @@ func view(filename string) error {
 	}
 
 	for i, file := range files {
-		fmt.Printf("%08x [%8x] %8d: ", file.Offset(), file.Size(), i)
-		err = hex(file, length)
+		fmt.Printf("%08x [%8x] %5d: ", file.Offset(), file.Size(), i)
+		dfile, ok := tryDecompress(file)
+		if ok {
+			fmt.Print("*")
+		} else {
+			fmt.Print(" ")
+		}
+		err = hex(dfile, length)
 		if err != nil {
 			fmt.Printf("%s\n", err)
 		}
 	}
 	return nil
+}
+
+func tryDecompress(r io.ReadSeeker) (io.Reader, bool) {
+	ok := lz.IsCompressed(r)
+	r.Seek(0, 0)
+	if !ok {
+		return r, false
+	}
+	data, err := lz.Decode(r)
+	if err != nil {
+		off, _ := r.Seek(0, 1)
+		fmt.Printf("%s at %X\n", err, off)
+		r.Seek(0, 0)
+		return r, false
+	}
+	return bytes.NewReader(data), true
 }
 
 func hex(r io.Reader, length int) error{
