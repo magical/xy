@@ -1,47 +1,46 @@
 package main
 
 import (
-	"os"
-	"errors"
 	"encoding/binary"
+	"errors"
 	"fmt"
-
+	"os"
 )
 
 type GARC struct {
 }
 
 type Header struct {
-	Magic [4]byte
+	Magic      [4]byte
 	HeaderSize uint32
-	BOM uint32
+	BOM        uint32
 	ChunkCount uint32 // always 4
 	DataOffset uint32
-	Size uint32
-	LastSize uint32 // same as last word in FATB
+	Size       uint32
+	LastSize   uint32 // same as last word in FATB
 }
 
 // File allocation table offsets
 type FATO struct {
-	Magic [4]byte // OTAF
-	Size uint32
+	Magic       [4]byte // OTAF
+	Size        uint32
 	RecordCount uint16
-	_ uint16 // always 0xFFFF
+	_           uint16 // always 0xFFFF
 	// Each record is 4 bytes and gives an offset into the FATB
 }
 
 // File allocation table
 type FATB struct {
-	Magic [4]byte // BTAF
-	Size uint32
+	Magic       [4]byte // BTAF
+	Size        uint32
 	RecordCount uint32
 }
 
 type Record struct {
-	_ uint32 // always 1
+	_     uint32 // always 1
 	Start uint32
-	End uint32
-	Size uint32
+	End   uint32
+	Size  uint32
 }
 
 func main() {
@@ -83,7 +82,7 @@ func do(filename string) error {
 	}
 
 	// Skip FATO
-	f.Seek(int64(fato.Size) - 12, 1)
+	f.Seek(int64(fato.Size)-12, 1)
 
 	err = binary.Read(f, binary.LittleEndian, &fatb)
 	if err != nil {

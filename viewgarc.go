@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
-	"os"
-	"io"
-	"fmt"
 	"flag"
+	"fmt"
+	"io"
+	"os"
 
 	"xy/garc"
 	"xy/lz"
@@ -71,9 +71,9 @@ func tryDecompress(r io.ReadSeeker) (io.Reader, bool) {
 	return bytes.NewReader(data), true
 }
 
-func hex(r io.Reader, length int) error{
+func hex(r io.Reader, length int) error {
 	const hex = "0123456789ABCDEF"
-	var b[4]byte
+	var b [4]byte
 	var buf bytes.Buffer
 	for {
 		n, err := r.Read(b[:])
@@ -81,7 +81,7 @@ func hex(r io.Reader, length int) error{
 			buf.WriteByte(hex[b[i]>>4])
 			buf.WriteByte(hex[b[i]&0xF])
 		}
-		if buf.Len() >= length*9 - 1 {
+		if buf.Len() >= length*9-1 {
 			buf.WriteString("...")
 			break
 		}
