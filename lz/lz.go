@@ -2,9 +2,11 @@ package lz
 
 import (
 	"bufio"
-	//"fmt"
 	"errors"
 	"io"
+
+	//"fmt"
+	//"os"
 )
 
 var errMalformed = errors.New("lz.Decode: malformed data")
@@ -29,7 +31,7 @@ func decode10(r io.ByteReader, size int) ([]byte, error) {
 			count := n>>12 + 3
 			disp := n&0xFFF + 1
 			if disp > len(data) {
-				return nil, errMalformed
+				return data, errMalformed
 			}
 			if len(data)+count > size {
 				count = size - len(data)
@@ -40,7 +42,7 @@ func decode10(r io.ByteReader, size int) ([]byte, error) {
 		}
 	}
 	if err != nil {
-		return nil, err
+		return data, err
 	}
 	return data, nil
 }
@@ -75,7 +77,7 @@ func decode11(r io.ByteReader, size int) ([]byte, error) {
 			count += n >> 12
 			disp := n&0xFFF + 1
 			if disp > len(data) {
-				return nil, errMalformed
+				return data, errMalformed
 			}
 			if len(data)+count > size {
 				count = size - len(data)
@@ -87,7 +89,7 @@ func decode11(r io.ByteReader, size int) ([]byte, error) {
 		}
 	}
 	if err != nil {
-		return nil, err
+		return data, err
 	}
 	return data, nil
 }
