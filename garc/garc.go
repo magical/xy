@@ -48,6 +48,8 @@ type Reader interface {
 type File struct {
 	io.SectionReader
 	off int64
+	Major int
+	Minor int
 }
 
 func (f *File) Offset() int64 {
@@ -65,7 +67,7 @@ func Files(r Reader) ([]*File, error) {
 	}
 	//fmt.Println(head)
 	if string(head.Magic[:]) != "CRAG" {
-		return nil, errors.New("not a GRAC")
+		return nil, errors.New("not a GARC")
 	}
 
 	err = binary.Read(r, binary.LittleEndian, &fato)
@@ -85,14 +87,14 @@ func Files(r Reader) ([]*File, error) {
 	}
 
 	files := make([]*File, 0, fatb.RecordCount)
-	for _ = range osets {
+	for major := range osets {
 		var vec uint32
 		err := binary.Read(r, binary.LittleEndian, &vec)
 		if err != nil {
 			return nil, err
 		}
 		var rec Record
-		for ; vec != 0; vec >>= 1 {
+		for minor := 0; vec != 0; minor, vec = minor+1, vec>>1 {
 			if vec&1 == 0 {
 				continue
 			}
@@ -102,7 +104,7 @@ func Files(r Reader) ([]*File, error) {
 			}
 			off := int64(head.DataOffset) + int64(rec.Start)
 			size := int64(rec.Size)
-			files = append(files, &File{*io.NewSectionReader(r, off, size), off})
+			files = append(files, &File{*io.NewSectionReader(r, off, size), off, major, minor})
 		}
 	}
 	return files, nil

@@ -66,6 +66,16 @@ func Read(r Reader) (darc *DARC, err error) {
 	darc = new(DARC)
 
 	err = binary.Read(r, le, &num)
+	if err != nil { return nil, ErrHeader }
+	_, err = r.Seek(int64(num)*64, seekCur)
+	if err != nil { return nil, ErrHeader }
+	err = binary.Read(r, le, &num)
+	if err != nil { return nil, ErrHeader }
+	_, err = r.Seek(int64(num)*32, seekCur)
+	if err != nil { return nil, ErrHeader }
+
+	/*
+	err = binary.Read(r, le, &num)
 	if err != nil {
 		return
 	}
@@ -82,10 +92,11 @@ func Read(r Reader) (darc *DARC, err error) {
 	if err != nil {
 		return
 	}
+	*/
 
 	off, err := r.Seek(0, seekCur)
 	if err != nil {
-		return
+		return nil, ErrHeader
 	}
 	off = (off + 0x7F) &^ 0x7F
 	r.Seek(off, seekSet)
@@ -93,12 +104,11 @@ func Read(r Reader) (darc *DARC, err error) {
 	h := &darc.Header
 	err = binary.Read(r, le, h)
 	if err != nil {
-		return
+		return nil, ErrHeader
 	}
 
 	if string(h.Magic[:]) != "darc" {
-		err = ErrHeader
-		return
+		return nil, ErrHeader
 	}
 
 	rr := io.NewSectionReader(r,
@@ -162,11 +172,11 @@ func buildTree(darc *DARC, r Reader, off int64, parent *Dir, names []uint16, rec
 			parent.Files = append(parent.Files, file)
 		}
 		darc.Files = append(darc.Files, file)
-		return i
+		return i+1
 	}
 	dir := &Dir{Name: name, Parent: parent}
-	var j int
-	for j = i+1; j < int(rec[i][2]); j++ {
+	var j = i+1
+	for j < int(rec[i][2]) {
 		j = buildTree(darc, r, off, dir, names, rec, j)
 	}
 	parent.Dirs = append(parent.Dirs, dir)
@@ -174,6 +184,10 @@ func buildTree(darc *DARC, r Reader, off int64, parent *Dir, names []uint16, rec
 }
 
 func readStrings(r io.Reader, n uint32, size int) (s []string, err error) {
+	// sanity check
+	if n > 1000 {
+		return nil, errors.New("darc: too many strings")
+	}
 	b := make([]byte, int(n)*size)
 	s = make([]string, 0, n)
 	err = binary.Read(r, le, b)

@@ -41,7 +41,8 @@ func view(filename string) error {
 	}
 
 	for i, file := range files {
-		fmt.Printf("%08x [%8x] %5d: ", file.Offset(), file.Size(), i)
+		num := fmt.Sprintf("(%d.%d)", file.Major, file.Minor)
+		fmt.Printf("%08x [%8x] %5d %8s: ", file.Offset(), file.Size(), i, num)
 		dfile, compressed := tryDecompress(file)
 		if compressed {
 			fmt.Print("*")
