@@ -128,17 +128,49 @@ func Read(r Reader) (darc *DARC, err error) {
 		return
 	}
 
+	/*
 	for _, rec := range records {
-		if rec[0] >> 24 != 0 {
-			continue
-		}
 		name := decode(names, rec[0])
-		rr := io.NewSectionReader(r, off+int64(rec[1]), off+int64(rec[1]+rec[2]))
-		file := &File{name, rr}
-		darc.Files = append(darc.Files, file)
+		var file *File
+		var dir *Dir
+		if rec[0] >> 24 == 0 {
+			rr := io.NewSectionReader(r, off+int64(rec[1]), off+int64(rec[1]+rec[2]))
+			file := &File{name, rr}
+			darc.Files = append(darc.Files, file)
+		}
 	}
+	*/
+
+	root := &Dir{Name: decode(names, rootRecord[0])}
+	root.Parent = root
+	buildTree(darc, r, off, root, names, records, 1)
+
+	darc.Root = root
 
 	return
+}
+
+func buildTree(darc *DARC, r Reader, off int64, parent *Dir, names []uint16, rec [][3]uint32, i int) int {
+	name := decode(names, rec[i][0])
+	if rec[i][0] >> 24 == 0 {
+		rr := io.NewSectionReader(r,
+			off+int64(rec[i][1]),
+			off+int64(rec[i][1]) + int64(rec[i][2]),
+		)
+		file := &File{name, rr}
+		if parent != nil {
+			parent.Files = append(parent.Files, file)
+		}
+		darc.Files = append(darc.Files, file)
+		return i
+	}
+	dir := &Dir{Name: name, Parent: parent}
+	var j int
+	for j = i+1; j < int(rec[i][2]); j++ {
+		j = buildTree(darc, r, off, dir, names, rec, j)
+	}
+	parent.Dirs = append(parent.Dirs, dir)
+	return j
 }
 
 func readStrings(r io.Reader, n uint32, size int) (s []string, err error) {
@@ -157,6 +189,10 @@ func readStrings(r io.Reader, n uint32, size int) (s []string, err error) {
 }
 
 func decode(b []uint16, i uint32) string {
+	i &= 0xFFFFFF
+	if int(i/2) > len(b) {
+		return ""
+	}
 	b = b[i/2:]
 	for j := range b {
 		if b[j] == 0 {
