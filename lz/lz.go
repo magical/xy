@@ -8,10 +8,12 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"strconv"
 
 	"fmt"
+	"os"
 )
+
+const debug = false
 
 var (
 	ErrHeader = errors.New("lz: invalid header")
@@ -20,7 +22,9 @@ var (
 
 type Reader struct {
 	reader io.ByteReader
-	roffset int64
+	roffset int
+	woffset int
+	buf []byte
 
 	err error
 
@@ -29,9 +33,6 @@ type Reader struct {
 	scratch [4]byte
 
 	decode func() (int, int)
-
-	buf []byte
-	n int
 
 	bits byte
 	bitcount int
@@ -64,40 +65,40 @@ func (z *Reader) Read(p []byte) (n int, err error) {
 		return 0, z.err
 	}
 
-	n = len(p)
-	if len(z.buf) + n > z.size {
-		n = z.size - len(z.buf)
-	}
-
-	for len(z.buf) < z.n + n && z.err == nil {
+	n = len(z.buf) - z.woffset
+	for len(z.buf) < z.size && n < len(p) && z.err == nil {
 		if !z.nextbit() {
 			z.buf = append(z.buf, z.readbyte())
+			n++
 			continue
 		}
 
+		off := z.roffset
 		count, dist := z.decode()
 		if dist > len(z.buf) {
-			z.err = errMalformed
+			z.err = fmt.Errorf("lz: bad distance %x at %x", dist, off)
 			break
 		}
 		if len(z.buf)+count > z.size {
-			z.err = errMalformed
+			z.err = fmt.Errorf("lz: bad size %x (%x remaining) at %x",
+				count, z.size - len(z.buf), off)
 			count = z.size - len(z.buf)
 		}
 		//fmt.Println(len(z.buf), dist, len(z.buf)-dist)
 		for i := 0; i < count; i++ {
 			z.buf = append(z.buf, z.buf[len(z.buf)-dist])
 		}
+		n += count
 	}
 
-	n = len(p)
-	if z.n + n > len(z.buf) {
-		n = len(z.buf) - z.n
+	if n < len(p) && z.err == nil {
 		z.err = io.EOF
 	}
-	copy(p, z.buf[z.n : z.n+n])
-	z.n += n
-
+	if n > len(p) {
+		n = len(p)
+	}
+	copy(p, z.buf[z.woffset : z.woffset+n])
+	z.woffset += n
 	return n, z.err
 }
 
@@ -110,18 +111,27 @@ func (z *Reader) decode10() (count, dist int) {
 
 func (z *Reader) decode11() (count, dist int) {
 	n := int(z.readbyte())<<8 + int(z.readbyte())
-	count = 1
+	code := n>>12
 	switch n >> 12 {
+	default:
+		// 4-bit count, 12-bit distance
+		count = 1
 	case 0:
+		// 8-bit count, 12-bit distance
 		n = n&0xFFF<<8 + int(z.readbyte())
 		count = 0x11
 	case 1:
+		// 16-bit count, 12-bit distance
 		// n doesn't exceed 28 bits
 		n = n&0xFFF<<16 + int(z.readbyte())<<8 + int(z.readbyte())
 		count = 0x111
 	}
 	count += n >> 12
 	dist = n&0xFFF + 1
+	if debug {
+		fmt.Fprintf(os.Stderr, "code %3d at %x/%x: %x,%x\n",
+			code, z.roffset, len(z.buf), count, -dist)
+	}
 	return
 }
 
@@ -141,9 +151,6 @@ func Decode(r io.Reader) ([]byte, error) {
 	}
 	data := make([]byte, z.size)
 	n, err := z.Read(data)
-	if err == nil && n != z.size {
-		err = fmt.Errorf("lz: size mismatch: %d expected %d", n, z.size)
-	}
 	return data[:n], err
 }
 

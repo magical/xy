@@ -42,17 +42,13 @@ func expand(filename string) error {
 	}
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
-		fmt.Fprintln(os.Stderr, "discarding output instead of sending to terminal")
+		fmt.Fprintln(os.Stderr, "[elided]")
 		out = ioutil.Discard
 	}
 
 	r, err := Decode(in)
-	if r != nil {
-		io.Copy(out, r)
-	}
-	if err != nil {
-		off, _ := in.Seek(0, os.SEEK_CUR)
-		err = fmt.Errorf("%s at %X", err, off)
+	if err == nil {
+		_, err = io.Copy(out, r)
 	}
 	return err
 }
@@ -60,7 +56,7 @@ func expand(filename string) error {
 func Decode(r io.ReadSeeker) (io.Reader, error) {
 	data, err := lz.Decode(r)
 	if data != nil {
-		return bytes.NewReader(data), nil
+		return bytes.NewReader(data), err
 	}
 	return nil, err
 }

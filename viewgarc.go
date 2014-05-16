@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
 	"xy/garc"
@@ -41,42 +42,50 @@ func view(filename string) error {
 
 	for i, file := range files {
 		fmt.Printf("%08x [%8x] %5d: ", file.Offset(), file.Size(), i)
-		dfile, ok := tryDecompress(file)
-		if ok {
+		dfile, compressed := tryDecompress(file)
+		if compressed {
 			fmt.Print("*")
 		} else {
 			fmt.Print(" ")
 		}
-		err = hex(dfile, length)
+		var nn, n int64
+		nn, err := hex(dfile, length)
+		if err == nil && compressed {
+			// Make sure there are no decoding errors
+			n, err = io.Copy(ioutil.Discard, dfile)
+			nn += n
+			if nn != dfile.Size() {
+				fmt.Printf("size mismatch: %d expected %d\n", nn, dfile.Size())
+			}
+		}
 		if err != nil {
-			fmt.Printf("%s\n", err)
+			fmt.Println(err)
 		}
 	}
 	return nil
 }
 
-func tryDecompress(r io.ReadSeeker) (io.Reader, bool) {
-	ok := lz.IsCompressed(r)
-	r.Seek(0, 0)
-	if !ok {
-		return r, false
-	}
-	data, err := lz.Decode(r)
-	if err != nil {
-		off, _ := r.Seek(0, 1)
-		fmt.Printf("%s at %X\n", err, off)
+type readerSize interface {
+	io.Reader
+	Size() int64
+}
+
+func tryDecompress(r *garc.File) (readerSize, bool) {
+	z, err := lz.NewReader(r)
+	if err != nil || z.Size() < r.Size() {
 		r.Seek(0, 0)
 		return r, false
 	}
-	return bytes.NewReader(data), true
+	return z, true
 }
 
-func hex(r io.Reader, length int) error {
+func hex(r io.Reader, length int) (nn int64, err error) {
 	const hex = "0123456789ABCDEF"
 	var b [4]byte
 	var buf bytes.Buffer
 	for {
 		n, err := r.Read(b[:])
+		nn += int64(n)
 		for i := 0; i < n; i++ {
 			buf.WriteByte(hex[b[i]>>4])
 			buf.WriteByte(hex[b[i]&0xF])
@@ -89,11 +98,11 @@ func hex(r io.Reader, length int) error {
 			break
 		}
 		if err != nil {
-			return err
+			return nn, err
 		}
 		buf.WriteByte(' ')
 	}
 	buf.WriteByte('\n')
 	io.Copy(os.Stdout, &buf)
-	return nil
+	return nn, nil
 }
