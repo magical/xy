@@ -54,6 +54,9 @@ func Read(r io.Reader) ([]string, error) {
 	for _, e := range entries {
 		off := int(e.Offset) - textOff
 		//fmt.Println(e, off/2, len(chars))
+		if off/2 + int(e.Length) > len(chars) {
+			return nil, errors.New("text: offset out of range")
+		}
 		chars := chars[off/2:][:e.Length]
 		//fmt.Printf("%x\n", chars)
 		key := chars[len(chars)-1]

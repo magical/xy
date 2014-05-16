@@ -1,92 +1,129 @@
 package main
 
 import (
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"os"
-	"strings"
-	"unicode/utf16"
+	"log"
+	"path/filepath"
+	"strconv"
+	"unicode/utf8"
 
+	"xy/garc"
 	"xy/text"
 )
 
-var le = binary.LittleEndian
-
 func main() {
-	in := os.Stdin
-	if len(os.Args) > 1 {
-		f, err := os.Open(os.Args[1])
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer f.Close()
-		in = f
-	}
-	ss, err := text.Read(in)
+	filename := os.Args[1]
+	outdir := os.Args[2]
+	err := do(filename, outdir)
 	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	for _, s := range ss {
-		fmt.Printf("%q\n", s)
+		log.Print(err)
 	}
 }
 
-func do(f *os.File) error {
-	var err error
-	var header struct {
-		Sections uint16
-		Lines    uint16
-		Size     uint32
-	}
-	err = binary.Read(f, le, &header)
+func do(filename string, outdir string) error {
+	f, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
-	if header.Sections != 1 {
-		return errors.New("too many sections!")
-	}
-
-	//fmt.Println(header)
-	type entry struct {
-		Offset uint32
-		Length uint16
-		_ uint16 // unknown
-	}
-	var junk = make([]uint32, header.Sections+2)
-	var entries = make([]entry, header.Lines)
-	textOff := binary.Size(entries) + 4
-	remaining := int(header.Size) - binary.Size(entries) - 4
-	//fmt.Printf("%x %x\n", textStart, remaining)
-	var chars = make([]uint16, remaining/2)
-	err = binary.Read(f, le, junk)
+	gfiles, err := garc.Files(f)
 	if err != nil {
 		return err
 	}
-	err = binary.Read(f, le, entries)
-	if err != nil {
-		return err
-	}
-	err = binary.Read(f, le, chars)
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		off := int(e.Offset) - textOff
-		//fmt.Println(e, off/2, len(chars))
-		chars := chars[off/2:][:e.Length]
-		//fmt.Printf("%x\n", chars)
-		key := chars[len(chars)-1]
-		for i := len(chars); i > 0; i-- {
-			chars[i-1] ^= key
-			key = (key>>3 | key<<13)
+	for gnum, gfile := range gfiles {
+		ss, err := text.Read(gfile)
+		if err != nil {
+			return fmt.Errorf("%s %d: %s", filename, gnum, err)
 		}
-		s := string(utf16.Decode(chars))
-		s = strings.TrimRight(s, "\x00")
-		fmt.Printf("%q\n", s)
+		outname := fmt.Sprint(gnum)
+		out, err := os.Create(filepath.Join(outdir, outname))
+		if err != nil {
+			return fmt.Errorf("%s %d: %s", filename, gnum, err)
+		}
+		defer out.Close()
+		for _, s := range ss {
+			out.WriteString(quoteWith(s, '\x00', false))
+			out.WriteString("\n")
+		}
 	}
 	return nil
+}
+
+const lowerhex = "0123456789abcdef"
+
+func quoteWith(s string, quote byte, ASCIIonly bool) string {
+	var runeTmp [utf8.UTFMax]byte
+	buf := make([]byte, 0, 3*len(s)/2) // Try to avoid more allocations.
+	//buf = append(buf, quote)
+	for width := 0; len(s) > 0; s = s[width:] {
+		r := rune(s[0])
+		width = 1
+		if r >= utf8.RuneSelf {
+			r, width = utf8.DecodeRuneInString(s)
+		}
+		if width == 1 && r == utf8.RuneError {
+			buf = append(buf, `\x`...)
+			buf = append(buf, lowerhex[s[0]>>4])
+			buf = append(buf, lowerhex[s[0]&0xF])
+			continue
+		}
+		/*
+		if r == rune(quote) || r == '\\' { // always backslashed
+			buf = append(buf, '\\')
+			buf = append(buf, byte(r))
+			continue
+		}
+		*/
+		if ASCIIonly {
+			if r < utf8.RuneSelf && strconv.IsPrint(r) {
+				buf = append(buf, byte(r))
+				continue
+			}
+		} else if strconv.IsPrint(r) {
+			n := utf8.EncodeRune(runeTmp[:], r)
+			buf = append(buf, runeTmp[:n]...)
+			continue
+		}
+		switch r {
+		case '\a':
+			buf = append(buf, `\a`...)
+		case '\b':
+			buf = append(buf, `\b`...)
+		case '\f':
+			buf = append(buf, `\f`...)
+		case '\n':
+			buf = append(buf, `\n`...)
+		case '\r':
+			buf = append(buf, `\r`...)
+		case '\t':
+			buf = append(buf, `\t`...)
+		case '\v':
+			buf = append(buf, `\v`...)
+		default:
+			switch {
+			case r < ' ':
+				buf = append(buf, `\x`...)
+				buf = append(buf, lowerhex[s[0]>>4])
+				buf = append(buf, lowerhex[s[0]&0xF])
+			case r > utf8.MaxRune:
+				r = 0xFFFD
+				fallthrough
+			case r < 0x10000:
+				buf = append(buf, `\u`...)
+				for s := 12; s >= 0; s -= 4 {
+					buf = append(buf, lowerhex[r>>uint(s)&0xF])
+				}
+			default:
+				buf = append(buf, `\U`...)
+				for s := 28; s >= 0; s -= 4 {
+					buf = append(buf, lowerhex[r>>uint(s)&0xF])
+				}
+			}
+		}
+	}
+	//buf = append(buf, quote)
+	return string(buf)
+
 }
