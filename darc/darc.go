@@ -1,5 +1,7 @@
 package darc
 
+// TODO: Don't build a directory tree, just give each file its full path.
+
 import (
 	"bytes"
 	"encoding/binary"
