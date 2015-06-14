@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"strconv"
+	"strings"
 
 	"xy/garc"
 	"xy/names"
@@ -13,6 +15,7 @@ import (
 type Item struct {
 	Index int
 	Name  string
+	Icon  int
 	ItemStats
 }
 
@@ -62,10 +65,20 @@ func main() {
 	}
 	defer f.Close()
 
+
 	files, err := garc.Files(f)
 	if err != nil {
 		die(err)
 	}
+
+	var iconmap []uint32
+	if len(os.Args) > 2 {
+		iconmap, err = readiconmap(os.Args[2], len(files))
+		if err != nil {
+			die(err)
+		}
+	}
+
 	var item Item
 	items := make([]Item, 0, len(files))
 	for i, file := range files {
@@ -76,6 +89,11 @@ func main() {
 		}
 		item.Index = i
 		item.Name = names.Item(i)
+		if iconmap != nil {
+			item.Icon = int(iconmap[i])
+		} else {
+			item.Icon = -1
+		}
 		//item.Name = names[i]
 		items = append(items, item)
 	}
@@ -86,9 +104,40 @@ func main() {
 	}
 }
 
+func readiconmap(filename string, n int) ([]uint32, error) {
+	filename, offstr := partition(filename, ":")
+
+	off, err := strconv.ParseInt(offstr, 0, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	if _, err := f.Seek(off, 0); err != nil {
+		return nil, err
+	}
+
+	m := make([]uint32, n)
+	err = binary.Read(f, binary.LittleEndian, m)
+	return m, err
+}
+
+func partition(s string, sep string) (front, back string) {
+	i := strings.Index(s, sep)
+	if i >= 0 {
+		return s[:i], s[i+1:]
+	}
+	return s, ""
+}
+
 var tmpltext = `<!DOCTYPE html>
 <meta charset="utf-8">
-<title>X/Y item struct</title>
+<title>OR/AS item struct</title>
 <style type="text/css">
   body { font-family: sans-serif; font-size: 16px; line-height: 1em; }
   table { border-collapse: collapse; white-space: nowrap; }
@@ -108,6 +157,7 @@ var tmpltext = `<!DOCTYPE html>
     <tr>
       <th>#</th>
       <th>Name</th>
+      <th>Icon</th>
 
       <th>Price</th>
       <th>Effect</th>
@@ -140,6 +190,7 @@ var tmpltext = `<!DOCTYPE html>
       <tr>
         <th>{{.Index}}</th>
         <th class=str>{{.Name}}</th>
+        <td>{{if ne .Icon -1}}<img src="items/{{.Icon}}.png">{{end}}</td>
 
         <td>{{.Price}}</td>
         <td>{{.Effect}}</td>
