@@ -18,6 +18,9 @@ type Move struct {
 	MoveStats
 }
 
+// MoveStats is the move stat structure found at
+// a/2/1/2 in Pokémon X and Y, and
+// a/1/8/9 in Pokémon Omega Ruby and Alpha Sapphire.
 type MoveStats struct {
 	Type            uint8
 	Category        uint8
