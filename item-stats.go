@@ -19,6 +19,9 @@ type Item struct {
 	ItemStats
 }
 
+// ItemStats is the item stat structure found at
+// a/2/2/0 in Pokémon X and Y, and
+// a/1/9/7 in Pokémon Omega Ruby and Alpha Sapphire.
 type ItemStats struct {
 	PriceRaw          uint16
 	Effect            uint8
@@ -48,14 +51,24 @@ type ItemStats struct {
 func (m *Item) Price() uint          { return uint(m.PriceRaw) * 10 }
 func (m *Item) Status() uint64       { return uint64(m.Status1) | uint64(m.Status2)<<32 | uint64(m.Status3)<<48 }
 func (m *Item) NaturalGiftType() int { return int(m.FlagsRaw & 31) }
+func (m *Item) NaturalGiftTypeName() string { return names.Type(int(m.FlagsRaw & 31)) }
 func (m *Item) Flags() uint16        { return m.FlagsRaw >> 5 }
+// Flags:
+// 	2 
+// 	3 berry / tm
+// 	4 key item
+//	5 nothing
+// 	6 ball
+// 	7 battle item
+// 	8 restores HP or PP
+// 	9 restores status
 
 func die(v ...interface{}) {
 	fmt.Fprintln(os.Stderr, v...)
 	os.Exit(1)
 }
 
-var t = template.Must(template.New("items").Parse(tmpltext))
+var t = template.Must(template.New("items").Funcs(funcs).Parse(tmpltext))
 
 func main() {
 	filename := os.Args[1]
@@ -135,6 +148,31 @@ func partition(s string, sep string) (front, back string) {
 	return s, ""
 }
 
+func flags(v interface{}, s string) string {
+	switch v := v.(type) {
+	case uint16:
+		return formatFlags(uint32(v), s)
+	}
+	return "error"
+}
+
+func formatFlags(u uint32, s string) string {
+	var b [64]byte
+	for i := 0; i < len(s); i++ {
+		if u & 1 == 0 {
+			b[i] = '-'
+		} else {
+			b[i] = s[i]
+		}
+		u = u >> 1
+	}
+	return string(b[:len(s)])
+}
+
+var funcs = template.FuncMap{
+	"flags": flags,
+}
+
 var tmpltext = `<!DOCTYPE html>
 <meta charset="utf-8">
 <title>OR/AS item struct</title>
@@ -149,6 +187,8 @@ var tmpltext = `<!DOCTYPE html>
   td.list { text-align: left; }
   td.int { text-align: right; }
   td.hex { font-family: monospace; }
+  td.icon { padding: 0; text-align: center; }
+  td img { vertical-align: middle; }
   tr:hover { background: #DEE6F5; }
 </style>
 
@@ -190,7 +230,7 @@ var tmpltext = `<!DOCTYPE html>
       <tr>
         <th>{{.Index}}</th>
         <th class=str>{{.Name}}</th>
-        <td>{{if ne .Icon -1}}<img src="items/{{.Icon}}.png">{{end}}</td>
+        <td class=icon>{{if ne .Icon -1}}<img src="items/{{.Icon}}.png">{{end}}</td>
 
         <td>{{.Price}}</td>
         <td>{{.Effect}}</td>
@@ -199,9 +239,9 @@ var tmpltext = `<!DOCTYPE html>
         <td>{{.FlingEffect}}</td>
         <td>{{.FlingPower}}</td>
         <td>{{.NaturalGiftPower}}</td>
-        <td>{{if ne .NaturalGiftType 31}}{{.NaturalGiftType}}{{end}}</td>
-        <td class=hex>{{printf "%011b" .Flags}}</td>
-        <td>{{.Unknown0A}}</td>
+        <td class=str>{{if ne .NaturalGiftType 31}}{{.NaturalGiftTypeName}}{{end}}</td>
+        <td class=hex>{{flags .Flags "012mk%bths%"}}</td>
+        <td class=hex>{{printf "%x" .Unknown0A}}</td>
         <td>{{.Unknown0B}}</td>
         <td>{{.Unknown0C}}</td>
         <td>{{.Unknown0D}}</td>
