@@ -1,7 +1,7 @@
 package names
 
 func Ability(n int) string {
-	if 0 < n && n < len(abilityNames) {
+	if 0 <= n && n < len(abilityNames) {
 		return abilityNames[n]
 	}
 	return ""
@@ -197,6 +197,8 @@ var abilityNames = []string{
 	"Dark Aura",
 	"Fairy Aura",
 	"Aura Break",
+
+	// Added in OR/AS
 	"Primordial Sea",
 	"Desolate Land",
 	"Delta Stream",
