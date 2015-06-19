@@ -15,6 +15,8 @@ import (
 type Pokemon struct {
 	Index int
 	Name  string
+	FormName string
+	FullName string
 	PokemonStats
 }
 
@@ -33,12 +35,12 @@ type PokemonStats struct {
 	FemaleRate     uint8
 	Hatch          uint8
 	Friendship     uint8
-	EggGroup       [2]uint8
 	GrowthRate     uint8
+	EggGroup       [2]uint8
 	Ability        [3]uint8
-	Unknown        uint8
+	Unknown1B      uint8
 	Form           uint16
-	Formz          uint16
+	FormNameIndex  uint16
 	FormCount      uint8
 	Color          uint8
 	Exp            uint16
@@ -46,8 +48,8 @@ type PokemonStats struct {
 	Weight         uint16
 	TM             [16]uint8
 	Tutor0         uint32
-	Unknown1       uint16
-	Unknown2       uint16
+	Height2        uint16
+	Unknown3E      uint16
 	Extra          [16]uint8
 }
 
@@ -60,6 +62,13 @@ func (p Pokemon) TypeText() string {
 
 func (p Pokemon) EffortText() string {
 	return fmt.Sprintf("%d/%d/%d/%d/%d/%d", p.Effort&3, p.Effort>>2&3, p.Effort>>4&3, p.Effort>>6&3, p.Effort>>8&3, p.Effort>>10&3)
+}
+
+func (p Pokemon) EggText() string {
+	if p.EggGroup[0] == p.EggGroup[1] {
+		return eggGroups[p.EggGroup[0]]
+	}
+	return eggGroups[p.EggGroup[0]] + "/" + eggGroups[p.EggGroup[1]]
 }
 
 func die(v ...interface{}) {
@@ -95,6 +104,9 @@ func main() {
 		}
 		p.Index = i
 		p.Name = names.Species(i)
+		if p.Index < len(formNames2) {
+			p.FormName = formNames2[p.Index]
+		}
 		pokemon = append(pokemon, p)
 	}
 
@@ -102,6 +114,10 @@ func main() {
 		if p.Form != 0 {
 			for j := 1; j < int(p.FormCount); j++ {
 				pokemon[int(p.Form)+j-1].Name = p.Name
+				pokemon[int(p.Form)+j-1].FormName =
+					formNames[int(p.FormNameIndex)+j-1]
+				pokemon[int(p.Form)+j-1].FullName =
+					fullNames[int(p.FormNameIndex)+j-1]
 			}
 		}
 	}
@@ -111,6 +127,419 @@ func main() {
 		die(err)
 	}
 }
+
+var eggGroups = []string{
+	"",
+	"monster",
+	"water1",
+	"bug",
+	"flying",
+	"ground",
+	"fairy",
+	"plant",
+	"humanshape",
+	"water3",
+	"mineral",
+	"indeterminate",
+	"water2",
+	"ditto",
+	"dragon",
+	"no-eggs",
+}
+
+var formNames2 = [...]string{
+	201: "One form",
+	351: "Normal",
+	382: "Kyogre",
+	383: "Groudon",
+	386: "Normal Forme",
+	412: "Plant Cloak",
+	413: "Plant Cloak",
+	421: "Overcast Form",
+	422: "West Sea",
+	423: "West Sea",
+	479: "Rotom",
+	487: "Altered Forme",
+	492: "Land Forme",
+	493: "Arceus",
+	550: "Red-Striped Form",
+	555: "Standard Mode",
+	585: "Spring Form",
+	586: "Spring Form",
+	641: "Incarnate Forme",
+	642: "Incarnate Forme",
+	645: "Incarnate Forme",
+	646: "Kyurem",
+	647: "Ordinary Form",
+	648: "Aria Forme",
+	649: "Genesect",
+	666: "Icy Snow Pattern",
+	669: "Red Flower",
+	670: "Red Flower",
+	671: "Red Flower",
+	676: "Natural Form",
+	678: "Male",
+	681: "Shield Forme",
+	710: "Average Size",
+	711: "Average Size",
+	716: "Neutral Mode",
+	720: "Hoopa Confined",
+}
+
+var formNames = []string{
+	"Mega Venusaur",
+	"Mega Charizard X",
+	"Mega Charizard Y",
+	"Mega Blastoise",
+	"Mega Beedrill",
+	"Mega Pidgeot",
+	"Pikachu Rock Star",
+	"Pikachu Belle",
+	"Pikachu Pop Star",
+	"Pikachu, Ph.D.",
+	"Pikachu Libre",
+	"Cosplay Pikachu",
+	"Mega Alakazam",
+	"Mega Slowbro",
+	"Mega Gengar",
+	"Mega Kangaskhan",
+	"Mega Pinsir",
+	"Mega Gyarados",
+	"Mega Aerodactyl",
+	"Mega Mewtwo X",
+	"Mega Mewtwo Y",
+	"Mega Ampharos",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"One form",
+	"Mega Steelix",
+	"Mega Scizor",
+	"Mega Heracross",
+	"Mega Houndoom",
+	"Mega Tyranitar",
+	"Mega Sceptile",
+	"Mega Blaziken",
+	"Mega Swampert",
+	"Mega Gardevoir",
+	"Mega Sableye",
+	"Mega Mawile",
+	"Mega Aggron",
+	"Mega Medicham",
+	"Mega Manectric",
+	"Mega Sharpedo",
+	"Mega Camerupt",
+	"Mega Altaria",
+	"Sunny Form",
+	"Rainy Form",
+	"Snowy Form",
+	"Mega Banette",
+	"Mega Absol",
+	"Mega Glalie",
+	"Mega Salamence",
+	"Mega Metagross",
+	"Mega Latias",
+	"Mega Latios",
+	"Primal Reversion",
+	"Primal Reversion",
+	"Mega Rayquaza",
+	"Attack Forme",
+	"Defense Forme",
+	"Speed Forme",
+	"Sandy Cloak",
+	"Trash Cloak",
+	"Sandy Cloak",
+	"Trash Cloak",
+	"Sunshine Form",
+	"East Sea",
+	"East Sea",
+	"Mega Lopunny",
+	"Mega Garchomp",
+	"Mega Lucario",
+	"Mega Abomasnow",
+	"Mega Gallade",
+	"Heat Rotom",
+	"Wash Rotom",
+	"Frost Rotom",
+	"Fan Rotom",
+	"Mow Rotom",
+	"Origin Forme",
+	"Sky Forme",
+	// Arceus
+	"Mega Audino",
+	"Blue-Striped Form",
+	"Zen Mode",
+	"Summer Form",
+	"Autumn Form",
+	"Winter Form",
+	"Summer Form",
+	"Autumn Form",
+	"Winter Form",
+	"Therian Forme",
+	"Therian Forme",
+	"Therian Forme",
+	"White Kyurem",
+	"Black Kyurem",
+	"Resolute Form",
+	"Pirouette Forme",
+	"Genesect",
+	"Genesect",
+	"Genesect",
+	"Genesect",
+	"Polar Pattern",
+	"Tundra Pattern",
+	"Continental Pattern",
+	"Garden Pattern",
+	"Elegant Pattern",
+	"Meadow Pattern",
+	"Modern Pattern",
+	"Marine Pattern",
+	"Archipelago Pattern",
+	"High Plains Pattern",
+	"Sandstorm Pattern",
+	"River Pattern",
+	"Monsoon Pattern",
+	"Savanna Pattern",
+	"Sun Pattern",
+	"Ocean Pattern",
+	"Jungle Pattern",
+	"Fancy Pattern",
+	"Poké Ball Pattern",
+	"Yellow Flower",
+	"Orange Flower",
+	"Blue Flower",
+	"White Flower",
+	"Yellow Flower",
+	"Orange Flower",
+	"Blue Flower",
+	"White Flower",
+	"Eternal Flower",
+	"Yellow Flower",
+	"Orange Flower",
+	"Blue Flower",
+	"White Flower",
+	"Heart Trim",
+	"Star Trim",
+	"Diamond Trim",
+	"Debutante Trim",
+	"Matron Trim",
+	"Dandy Trim",
+	"La Reine Trim",
+	"Kabuki Trim",
+	"Pharaoh Trim",
+	"Female",
+	"Blade Forme",
+	"Small Size",
+	"Large Size",
+	"Super Size",
+	"Small Size",
+	"Large Size",
+	"Super Size",
+	"Active Mode",
+	"Mega Diancie",
+	"Hoopa Unbound",
+}
+
+var fullNames = []string{
+	"Mega Venusaur",
+	"Mega Charizard X",
+	"Mega Charizard Y",
+	"Mega Blastoise",
+	"Mega Beedrill",
+	"Mega Pidgeot",
+	"Pikachu Rock Star",
+	"Pikachu Belle",
+	"Pikachu Pop Star",
+	"Pikachu, Ph.D.",
+	"Pikachu Libre",
+	"Cosplay Pikachu",
+	"Mega Alakazam",
+	"Mega Slowbro",
+	"Mega Gengar",
+	"Mega Kangaskhan",
+	"Mega Pinsir",
+	"Mega Gyarados",
+	"Mega Aerodactyl",
+	"Mega Mewtwo X",
+	"Mega Mewtwo Y",
+	"Mega Ampharos",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Unown",
+	"Mega Steelix",
+	"Mega Scizor",
+	"Mega Heracross",
+	"Mega Houndoom",
+	"Mega Tyranitar",
+	"Mega Sceptile",
+	"Mega Blaziken",
+	"Mega Swampert",
+	"Mega Gardevoir",
+	"Mega Sableye",
+	"Mega Mawile",
+	"Mega Aggron",
+	"Mega Medicham",
+	"Mega Manectric",
+	"Mega Sharpedo",
+	"Mega Camerupt",
+	"Mega Altaria",
+	"Sunny Castform",
+	"Rainy Castform",
+	"Snowy Castform",
+	"Mega Banette",
+	"Mega Absol",
+	"Mega Glalie",
+	"Mega Salamence",
+	"Mega Metagross",
+	"Mega Latias",
+	"Mega Latios",
+	"Primal Kyogre",
+	"Primal Groudon",
+	"Mega Rayquaza",
+	"Attack Deoxys",
+	"Defense Deoxys",
+	"Speed Deoxys",
+	"Sandy Burmy",
+	"Trash Burmy",
+	"Sandy Wormadam",
+	"Trash Wormadam",
+	"Sunshine Cherrim",
+	"East Shellos",
+	"East Gastrodon",
+	"Mega Lopunny",
+	"Mega Garchomp",
+	"Mega Lucario",
+	"Mega Abomasnow",
+	"Mega Gallade",
+	"Heat Rotom",
+	"Wash Rotom",
+	"Frost Rotom",
+	"Fan Rotom",
+	"Mow Rotom",
+	"Origin Giratina",
+	"Sky Shaymin",
+	// Arceus
+	"Mega Audino",
+	"Blue-Striped Form",
+	"Zen Mode",
+	"Summer Deerling",
+	"Autumn Deerling",
+	"Winter Deerling",
+	"Summer Sawsbuck",
+	"Autumn Sawsbuck",
+	"Winter Sawsbuck",
+	"Therian Forme",
+	"Therian Forme",
+	"Therian Forme",
+	"White Kyurem",
+	"Black Kyurem",
+	"Resolute Form",
+	"Pirouette Forme",
+	"Genesect",
+	"Genesect",
+	"Genesect",
+	"Genesect",
+	"Polar Pattern",
+	"Tundra Pattern",
+	"Continental Pattern",
+	"Garden Pattern",
+	"Elegant Pattern",
+	"Meadow Pattern",
+	"Modern Pattern",
+	"Marine Pattern",
+	"Archipelago Pattern",
+	"High Plains Pattern",
+	"Sandstorm Pattern",
+	"River Pattern",
+	"Monsoon Pattern",
+	"Savanna Pattern",
+	"Sun Pattern",
+	"Ocean Pattern",
+	"Jungle Pattern",
+	"Fancy Pattern",
+	"Poké Ball Pattern",
+	"Yellow Flabébé",
+	"Orange Flabébé",
+	"Blue Flabébé",
+	"White Flabébé",
+	"Yellow Floette",
+	"Orange Floette",
+	"Blue Floette",
+	"White Floette",
+	"Eternal Floette",
+	"Yellow Florges",
+	"Orange Florges",
+	"Blue Florges",
+	"White Florges",
+	"Heart Trim",
+	"Star Trim",
+	"Diamond Trim",
+	"Debutante Trim",
+	"Matron Trim",
+	"Dandy Trim",
+	"La Reine Trim",
+	"Kabuki Trim",
+	"Pharaoh Trim",
+	"Female",
+	"Blade Forme",
+	"Small Size",
+	"Large Size",
+	"Super Size",
+	"Small Size",
+	"Large Size",
+	"Super Size",
+	"Active Xernias",
+	"Mega Diancie",
+	"Hoopa Unbound",
+}
+
 
 var tmpltext = `<!DOCTYPE html>
 <meta charset="utf-8">
@@ -123,7 +552,7 @@ var tmpltext = `<!DOCTYPE html>
   tbody td, tbody th { border: 1px solid black; }
   td, th { padding: 0.3em; }
   td { text-align: right; }
-  td.str { text-align: left; }
+  td.str { text-align: center; }
   td.list { text-align: left; }
   td.int { text-align: right; }
   td.hex { text-align: left; font-family: monospace; }
@@ -135,6 +564,8 @@ var tmpltext = `<!DOCTYPE html>
     <tr>
       <th>#</th>
       <th>Name</th>
+      <th>Form Name</th>
+      <th>Full Name</th>
 
       <th>HP</th>
       <th>Atk</th>
@@ -167,7 +598,7 @@ var tmpltext = `<!DOCTYPE html>
       <th>Weight</th>
       {{/*<th>TMs</th>*/}}
       {{/*<th>Tutors 0</th>*/}}
-      <th>?</th>
+      <th>Height 2</th>
       <th>?</th>
       {{/*<th>Extra</th>*/}}
 
@@ -181,6 +612,8 @@ var tmpltext = `<!DOCTYPE html>
       <tr>
         <th>{{.Index}}</th>
         <th class=str>{{.Name}}</th>
+        <td class=str>{{.FormName}}</th>
+        <td class=str>{{.FullName}}</th>
 
         <td>{{.HP}}</td>
         <td>{{.Attack}}</td>
@@ -198,14 +631,14 @@ var tmpltext = `<!DOCTYPE html>
         <td>{{.FemaleRate}}</td>
         <td>{{.Hatch}}</td>
         <td>{{.Friendship}}</td>
-        <td>{{.EggGroup}}</td>
+        <td class=str>{{.EggText}}</td>
         <td>{{.GrowthRate}}</td>
         <td class=str>{{index .Ability 0 | ability}}</td>
         <td class=str>{{if ne (index .Ability 0) (index .Ability 1)}}{{index .Ability 1 | ability}}{{end}}</td>
         <td class=str>{{index .Ability 2 | ability}}</td>
-        <td>{{.Unknown}}</td>
+        <td>{{.Unknown1B}}</td>
         <td>{{.Form}}</td>
-        <td>{{.Formz}}</td>
+        <td>{{.FormNameIndex}}</td>
         <td>{{.FormCount}}</td>
         <td>{{.Color}}</td>
         <td>{{.Exp}}</td>
@@ -213,8 +646,8 @@ var tmpltext = `<!DOCTYPE html>
         <td>{{.Weight}}</td>
         {{/*<td class=hex>{{bin .TM}}</td>*/}}
         {{/*<td class=hex>{{bin .Tutor0}}</td>*/}}
-        <td>{{printf "%x" .Unknown1}}</td>
-        <td>{{printf "%x" .Unknown2}}</td>
+        <td>{{.Height2}}</td>
+        <td>{{.Unknown3E}}</td>
         {{/*<td class=hex>{{printf "% x" .Extra}}</td>*/}}
 
         <th class=str>{{.Name}}</th>
