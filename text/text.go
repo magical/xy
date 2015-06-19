@@ -4,13 +4,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"strings"
+	"strconv"
+	"unicode/utf8"
 	"unicode/utf16"
 )
 
 var le = binary.LittleEndian
 
-func Read(r io.Reader) ([]string, error) {
+func ReadRaw(r io.Reader) ([][]uint16, error) {
 	var err error
 	var header struct {
 		Sections uint16
@@ -50,7 +51,7 @@ func Read(r io.Reader) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var ss []string
+	var ss [][]uint16
 	for _, e := range entries {
 		off := int(e.Offset) - textOff
 		//fmt.Println(e, off/2, len(chars))
@@ -64,9 +65,122 @@ func Read(r io.Reader) ([]string, error) {
 			chars[i-1] ^= key
 			key = (key>>3 | key<<13)
 		}
-		s := string(utf16.Decode(chars))
-		s = strings.TrimRight(s, "\x00")
-		ss = append(ss, s)
+		ss = append(ss, chomp(chars))
 	}
 	return ss, nil
+}
+
+func Read(r io.Reader) ([]string, error) {
+	textsRaw, err := ReadRaw(r)
+	if err != nil {
+		return nil, err
+	}
+	texts := make([]string, 0, len(textsRaw))
+	for _, s := range textsRaw {
+		texts = append(texts, string(utf16.Decode(s)))
+	}
+	return texts, nil
+}
+
+func chomp(s []uint16) []uint16 {
+	if len(s) > 0 && s[len(s)-1] == 0 {
+		return s[:len(s)-1]
+	}
+	return s
+}
+
+func trimRight(s []uint16) []uint16 {
+	i := len(s)
+	for i > 0 && s[i-1] == 0 {
+		i--
+	}
+	return s[:i]
+}
+
+const lowerhex = "0123456789abcdef"
+
+func Escape(s []uint16) string {
+	return escape(s, false)
+}
+
+func escape(s []uint16, ASCIIonly bool) string {
+	var runeTmp [utf8.UTFMax]byte
+	buf := make([]byte, 0, 3*len(s)/2) // Try to avoid more allocations.
+	for width := 0; len(s) > 0; s = s[width:] {
+		r := rune(s[0])
+		width = 1
+		if r == 0x10 && len(s) > 1{
+			width = int(s[1]) + 2
+			if width > len(s) {
+				width = len(s)
+			}
+			buf = append(buf, `\e`...)
+			buf = strconv.AppendInt(buf, int64(s[1]), 10)
+			buf = append(buf, '{')
+			for i := 2; i < width; i++ {
+				if i != 2 {
+					buf = append(buf, ',')
+				}
+				buf = append(buf, lowerhex[s[i]>>12&0xF])
+				buf = append(buf, lowerhex[s[i]>>8&0xF])
+				buf = append(buf, lowerhex[s[i]>>4&0xF])
+				buf = append(buf, lowerhex[s[i]&0xF])
+			}
+			buf = append(buf, '}')
+			continue
+		}
+		if width == 1 && r == utf8.RuneError {
+			buf = append(buf, `\x`...)
+			buf = append(buf, lowerhex[s[0]>>4])
+			buf = append(buf, lowerhex[s[0]&0xF])
+			continue
+		}
+		if ASCIIonly {
+			if r < utf8.RuneSelf && strconv.IsPrint(r) {
+				buf = append(buf, byte(r))
+				continue
+			}
+		} else if strconv.IsPrint(r) {
+			n := utf8.EncodeRune(runeTmp[:], r)
+			buf = append(buf, runeTmp[:n]...)
+			continue
+		}
+		switch r {
+		//case '\a':
+		//	buf = append(buf, `\a`...)
+		//case '\b':
+		//	buf = append(buf, `\b`...)
+		//case '\f':
+		//	buf = append(buf, `\f`...)
+		case '\n':
+			buf = append(buf, `\n`...)
+		case '\r':
+			buf = append(buf, `\r`...)
+		//case '\t':
+		//	buf = append(buf, `\t`...)
+		//case '\v':
+		//	buf = append(buf, `\v`...)
+		default:
+			switch {
+			case r < ' ':
+				buf = append(buf, `\x`...)
+				buf = append(buf, lowerhex[s[0]>>4])
+				buf = append(buf, lowerhex[s[0]&0xF])
+			case r > utf8.MaxRune:
+				r = 0xFFFD
+				fallthrough
+			case r < 0x10000:
+				buf = append(buf, `\u`...)
+				for s := 12; s >= 0; s -= 4 {
+					buf = append(buf, lowerhex[r>>uint(s)&0xF])
+				}
+			default:
+				buf = append(buf, `\U`...)
+				for s := 28; s >= 0; s -= 4 {
+					buf = append(buf, lowerhex[r>>uint(s)&0xF])
+				}
+			}
+		}
+	}
+	return string(buf)
 }
