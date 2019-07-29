@@ -82,6 +82,11 @@ type Import struct {
 	PatchOffset uint32
 }
 
+type AnonymousImport struct {
+	SegOffset   uint32
+	PatchOffset uint32
+}
+
 type Export struct {
 	NameOffset uint32
 	DataOffset uint32
@@ -196,7 +201,7 @@ func printmain() {
 	}
 
 	if true {
-		imports := make([]Import, header.ImportTable[2].Count)
+		imports := make([]AnonymousImport, header.ImportTable[2].Count)
 
 		f.Seek(int64(header.ImportTable[2].Offset), 0)
 		err = binary.Read(f, le, imports)
@@ -204,6 +209,7 @@ func printmain() {
 			fmt.Println(err)
 			return
 		}
+	importloop:
 		for _, imp := range imports {
 			//fmt.Printf("Import %d\n", i)
 			//fmt.Printf(" Name offset: %x\n", imp.NameOffset)
@@ -221,9 +227,21 @@ func printmain() {
 				fmt.Println(err)
 				continue
 			}
-			fmt.Printf("Import: ?=%x, ?=%x, seg=%d, off=%x, x=%x\n",
-				imp.NameOffset&0xFF, imp.NameOffset>>4,
-				patch.Dest&0xF, patch.Dest>>4, patch.X)
+			for off := imp.PatchOffset; ; off += 12 {
+				fmt.Printf("Import: target seg=%x, offset=%x, patch seg=%d,off=%x, islast=%x\n",
+					imp.SegOffset&0x0F, imp.SegOffset>>4,
+					patch.Dest&0xF, patch.Dest>>4, patch.Seg)
+
+				// for import patches, seg is actually an "is last" flag
+				if patch.Seg != 0 {
+					break
+				}
+				patch, err = readPatch(f, int64(off+12))
+				if err != nil {
+					fmt.Println(err)
+					continue importloop
+				}
+			}
 			// In table 3 at least,
 			// X is always zero (which kind of makes sense)
 			// however the first word is definitely not a name offset
