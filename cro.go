@@ -79,7 +79,7 @@ type Patch struct {
 
 type Import struct {
 	NameOffset   uint32
-	SymbolOffset uint32
+	PatchOffset  uint32
 }
 
 type Export struct {
@@ -195,33 +195,55 @@ func printmain() {
 		return
 	}
 
-	fmt.Print(hex.Dump(contents[segments[0].Offset:][:segments[0].Size]))
+	if true {
+		imports := make([]Import, header.ImportTable[2].Count)
 
-	if false {
-		for _, imp := range header.ImportTable {
-			imports := make([]Import, imp.Count)
+		f.Seek(int64(header.ImportTable[2].Offset), 0)
+		err = binary.Read(f, le, imports)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		for _, imp := range imports {
+			//fmt.Printf("Import %d\n", i)
+			//fmt.Printf(" Name offset: %x\n", imp.NameOffset)
+			//fmt.Printf(" Patch offset: %x\n", imp.PatchOffset)
 
-			f.Seek(int64(imp.Offset), 0)
-			err = binary.Read(f, le, imports)
+			/*
+			var name []byte
+			if int(imp.NameOffset) < len(contents) {
+				name = contents[imp.NameOffset:]
+				name = name[:bytes.IndexByte(name, 0)]
+			}
+			*/
+			patch, err := readPatch(f, int64(imp.PatchOffset))
 			if err != nil {
 				fmt.Println(err)
-				return
+				continue
 			}
-			for i, imp := range imports {
-				fmt.Printf("Import %d\n", i)
-				fmt.Printf(" Name offset: %x\n", imp.NameOffset)
-				fmt.Printf(" Symbol offset: %x\n", imp.SymbolOffset)
-				/*
-				var name []byte
-				if int(imp.NameOffset) < len(contents) {
-					name = contents[imp.NameOffset:]
-					name = name[:bytes.IndexByte(name, 0)]
-				}
-				fmt.Printf("%x %s\n", imp.SymbolOffset, name)
-				*/
-			}
+			fmt.Printf("Import: ?=%x, ?=%x, seg=%d, off=%x, x=%x\n",
+				imp.NameOffset&0xFF, imp.NameOffset>>4,
+				patch.Dest&0xF, patch.Dest>>4, patch.X)
+			// In table 3 at least,
+			// X is always zero (which kind of makes sense)
+			// however the first word is definitely not a name offset
 		}
 	}
+
+	fmt.Print(hex.Dump(contents[segments[0].Offset:][:segments[0].Size]))
+
+}
+
+func readPatch(f *os.File, off int64) (p Patch, _ error) {
+	_, err := f.Seek(off, os.SEEK_SET)
+	if err != nil {
+		return Patch{}, err
+	}
+	err = binary.Read(f, le, &p)
+	if err != nil {
+		return Patch{}, err
+	}
+	return p, nil
 }
 
 func patch(f *os.File, header *Header, segments []Segment, contents []byte)  error {
