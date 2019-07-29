@@ -269,10 +269,15 @@ func patch(f *os.File, header *Header, segments []Segment, contents []byte)  err
 		}
 		xbase := segments[p.Seg].Offset
 		switch p.Type {
-		case 2:
-			// Absolute address
+		case 2: // Absolute address
 			off := base + dest
-			le.PutUint32(contents[off:], xbase + p.X)
+			orig := le.Uint32(contents[off:])
+			if orig != 0 {
+				fmt.Printf("Patch: segment=%d, offset=%x, x=%x+%x\n", seg, dest, orig, p.X)
+			}
+			fmt.Printf("Patch: segment=%d, offset=%x, x=%x+%x\n", seg, dest, xbase, p.X)
+			le.PutUint32(contents[off:], p.X)
+			_ = xbase
 		}
 	}
 	return nil
