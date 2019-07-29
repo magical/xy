@@ -28,7 +28,7 @@ type Header struct {
 
 	CodeOffset    uint32
 	CodeSize      uint32
-	C            uint32
+	C             uint32
 	D             uint32
 	NameOffset    uint32
 	NameSize      uint32
@@ -64,22 +64,22 @@ type Header struct {
 
 type Segment struct {
 	Offset uint32
-	Size uint32
-	ID   uint32
+	Size   uint32
+	ID     uint32
 }
 
 type Patch struct {
 	Dest uint32
 	Type uint8
-	Seg uint8
-	_ uint8
-	_ uint8
-	X uint32
+	Seg  uint8
+	_    uint8
+	_    uint8
+	X    uint32
 }
 
 type Import struct {
-	NameOffset   uint32
-	PatchOffset  uint32
+	NameOffset  uint32
+	PatchOffset uint32
 }
 
 type Export struct {
@@ -189,7 +189,7 @@ func printmain() {
 		fmt.Printf("%x %s\n", e.DataOffset, name)
 	}
 
-	err =patch(f, &header, segments, contents)
+	err = patch(f, &header, segments, contents)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -210,11 +210,11 @@ func printmain() {
 			//fmt.Printf(" Patch offset: %x\n", imp.PatchOffset)
 
 			/*
-			var name []byte
-			if int(imp.NameOffset) < len(contents) {
-				name = contents[imp.NameOffset:]
-				name = name[:bytes.IndexByte(name, 0)]
-			}
+				var name []byte
+				if int(imp.NameOffset) < len(contents) {
+					name = contents[imp.NameOffset:]
+					name = name[:bytes.IndexByte(name, 0)]
+				}
 			*/
 			patch, err := readPatch(f, int64(imp.PatchOffset))
 			if err != nil {
@@ -253,7 +253,7 @@ func readPatch(f *os.File, off int64) (p Patch, _ error) {
 	return p, nil
 }
 
-func patch(f *os.File, header *Header, segments []Segment, contents []byte)  error {
+func patch(f *os.File, header *Header, segments []Segment, contents []byte) error {
 	// Patches
 	patches := make([]Patch, header.PatchCount)
 	f.Seek(int64(header.PatchOffset), 0)
@@ -264,7 +264,7 @@ func patch(f *os.File, header *Header, segments []Segment, contents []byte)  err
 
 	for _, p := range patches {
 		dest := p.Dest >> 4
-		seg := int(p.Dest&0xF)
+		seg := int(p.Dest & 0xF)
 		if seg > len(segments) {
 			fmt.Fprintln(os.Stderr, "segment out of range")
 			continue
