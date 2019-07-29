@@ -230,7 +230,14 @@ func printmain() {
 		}
 	}
 
+	fmt.Println("Text segment contents:")
 	fmt.Print(hex.Dump(contents[segments[0].Offset:][:segments[0].Size]))
+
+	fmt.Println("Data segment contents:")
+	fmt.Print(hex.Dump(contents[segments[1].Offset:][:segments[1].Size]))
+
+	fmt.Println("Other data segment contents????")
+	fmt.Print(hex.Dump(contents[segments[2].Offset:][:segments[2].Size]))
 
 }
 
