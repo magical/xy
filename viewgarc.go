@@ -13,9 +13,11 @@ import (
 )
 
 var length int
+var decompress bool
 
 func main() {
 	flag.IntVar(&length, "w", 10, "length of hex dump, in words")
+	flag.BoolVar(&decompress, "z", false, "attempt to decompress")
 	flag.Parse()
 	if flag.NArg() < 1 {
 		flag.Usage()
@@ -43,11 +45,16 @@ func view(filename string) error {
 	for i, file := range files {
 		num := fmt.Sprintf("(%d.%d)", file.Major, file.Minor)
 		fmt.Printf("%08x [%8x] %5d %8s: ", file.Offset(), file.Size(), i, num)
-		dfile, compressed := tryDecompress(file)
-		if compressed {
-			fmt.Print("*")
-		} else {
-			fmt.Print(" ")
+
+		var dfile readerSize = file
+		compressed := false
+		if decompress {
+			dfile, compressed = tryDecompress(file)
+			if compressed {
+				fmt.Print("*")
+			} else {
+				fmt.Print(" ")
+			}
 		}
 		var nn, n int64
 		nn, err := hex(dfile, length)
