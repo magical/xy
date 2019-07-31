@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 
